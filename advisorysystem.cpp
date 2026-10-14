@@ -1,12 +1,15 @@
+
 #include "advisorysystem.h"
 
 #include "transportadvisoryrule.h"
 #include "electricityadvisoryrule.h"
 #include "foodadvisoryrule.h"
 
-#include <utility>
+#include <cmath>
+#include <memory>
 
 // Constructor: register all available advisory rules.
+// The order must match the emissions array below.
 AdvisorySystem::AdvisorySystem()
 {
     rules.push_back(
@@ -22,7 +25,7 @@ AdvisorySystem::AdvisorySystem()
         );
 }
 
-// Generate recommendations for the recorded activities.
+// Generate recommendations for the category with the highest emissions.
 QStringList AdvisorySystem::generateRecommendations(
     double transportEmissions,
     double electricityEmissions,
@@ -36,26 +39,45 @@ QStringList AdvisorySystem::generateRecommendations(
         foodEmissions
     };
 
-    // Each rule evaluates its corresponding activity.
-    for (std::size_t i = 0; i < rules.size(); ++i) {
+    // Find the category with the highest valid emissions.
+    int highestIndex = -1;
+    double highestEmissions = -1.0;
 
-        if (rules[i]->isApplicable(activityEmissions[i])) {
+    for (int i = 0; i < 3; ++i) {
 
-            recommendations.append(
-                rules[i]->getRecommendation()
-                );
+        // Ignore invalid or negative emission values.
+        if (!std::isfinite(activityEmissions[i]) ||
+            activityEmissions[i] < 0.0) {
+            continue;
+        }
+
+        if (activityEmissions[i] > highestEmissions) {
+            highestEmissions = activityEmissions[i];
+            highestIndex = i;
         }
     }
 
-    // If no individual activity triggers a recommendation,
-    // provide a general message.
-    if (recommendations.isEmpty()) {
+    // Generate an advisory only for the highest-emission category.
+    if (highestIndex >= 0 &&
+        highestIndex < static_cast<int>(rules.size()) &&
+        rules[highestIndex]->isApplicable(highestEmissions)) {
 
         recommendations.append(
-            "Your recorded activities do not trigger any "
-            "specific advisory rules. Continue monitoring "
-            "your footprint and look for opportunities "
-            "to reduce emissions."
+            rules[highestIndex]->getRecommendation(
+                highestEmissions
+                )
+            );
+    }
+    else {
+        // Fallback when no valid category triggers its rule.
+        recommendations.append(
+            QStringLiteral(
+                "No specific advisory was triggered by your current "
+                "emission values. Continue recording your activities "
+                "and review your transport, electricity and food habits. "
+                "Your advisory thresholds may need adjustment to match "
+                "your application's emission units."
+                )
             );
     }
 
