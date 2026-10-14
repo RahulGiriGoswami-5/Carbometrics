@@ -1,0 +1,10 @@
+*.user 
+*.user.* 
+build/ 
+build-*/ 
+*.o 
+*.obj 
+*.exe 
+CMakeCache.txt 
+CMakeFiles/ 
+Makefile*
