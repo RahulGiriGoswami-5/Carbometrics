@@ -36,6 +36,10 @@
 #include <QLinearGradient>
 #include <QtMath>
 #include <QPointer>
+#include <QFileDialog>
+#include <QInputDialog>
+#include <QPixmap>
+#include <QFileInfo>
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
 #include <QNetworkReply>
@@ -2921,13 +2925,15 @@ private:
 // CONSTRUCTOR
 // ============================================================
 
-MainWindow::MainWindow(QWidget *parent)
+MainWindow::MainWindow(const UserProfile &profile, QWidget *parent)
     : QMainWindow(parent),
+    currentUser(profile),
     pages(nullptr),
     dashboardPage(nullptr),
     inputPage(nullptr),
     reportsPage(nullptr),
     suggestionsPage(nullptr),
+    profilePage(nullptr),
     nameInput(nullptr),
     transportType(nullptr),
     distanceInput(nullptr),
@@ -2942,7 +2948,11 @@ MainWindow::MainWindow(QWidget *parent)
     dashboardDonut(nullptr),
     reportsDonut(nullptr),
     reportsTrend(nullptr),
-    reportsSummary(nullptr)
+    reportsSummary(nullptr),
+    profileNameInput(nullptr),
+    profileEmailInput(nullptr),
+    profileUsernameLabel(nullptr),
+    profilePhotoLabel(nullptr)
 {
     // MODULE 5: Initialize the database before setting up the GUI.
 
@@ -2965,6 +2975,24 @@ MainWindow::MainWindow(QWidget *parent)
 
     setupUI();
     applyStyles();
+    if (nameInput) {
+        nameInput->setText(currentUser.fullName);
+        nameInput->setReadOnly(true); // Edit the name from My Profile.
+    }
+    setWindowTitle(QString("CarboMetrics | %1").arg(currentUser.fullName));
+
+    // Restore only this account's saved dashboard totals.
+    const QVector<EmissionRecord> ownRecords = databaseManager.getAllRecords(currentUser.userId);
+    double todayTotal = 0.0;
+    const QDate today = QDate::currentDate();
+    for (const EmissionRecord &saved : ownRecords) {
+        const QDateTime savedAt = QDateTime::fromString(saved.recordedAt, Qt::ISODate);
+        if (savedAt.isValid() && savedAt.date() == today) {
+            todayTotal += saved.totalEmissions;
+        }
+    }
+    if (activitiesValue) activitiesValue->setText(QString::number(ownRecords.size()));
+    if (emissionsValue) emissionsValue->setText(QString("%1 kg CO2e").arg(todayTotal, 0, 'f', 2));
 }
 
 // ============================================================
@@ -2993,16 +3021,19 @@ void MainWindow::setupUI()
     inputPage = new QWidget();
     reportsPage = new QWidget();
     suggestionsPage = new QWidget();
+    profilePage = new QWidget();
 
     setupDashboard();
     setupInputPage();
     setupReportsPage();
     setupSuggestionsPage();
+    setupProfilePage();
 
     pages->addWidget(dashboardPage);
     pages->addWidget(inputPage);
     pages->addWidget(reportsPage);
     pages->addWidget(suggestionsPage);
+    pages->addWidget(profilePage);
 
     mainLayout->addWidget(sidebar);
     mainLayout->addWidget(pages, 1);
@@ -3057,8 +3088,21 @@ QWidget *MainWindow::createSidebar()
     addNavButton("＋  Track Emissions", "navButton", &MainWindow::showTrackEmissions);
     addNavButton("▤  My Reports", "navButton", &MainWindow::showReports);
     addNavButton("✦  Smart Suggestions", "navButton", &MainWindow::showSuggestions);
+    addNavButton("◉  My Profile", "navButton", &MainWindow::showProfile);
 
     layout->addStretch();
+
+    auto *accountLabel = new QLabel(QString("Signed in as\n%1 (@%2)").arg(currentUser.fullName, currentUser.username));
+    accountLabel->setObjectName("sidebarFooter");
+    accountLabel->setWordWrap(true);
+    layout->addWidget(accountLabel);
+
+    QPushButton *logoutButton = new QPushButton("↪  Logout");
+    logoutButton->setObjectName("navButton");
+    logoutButton->setMinimumHeight(42);
+    logoutButton->setCursor(Qt::PointingHandCursor);
+    layout->addWidget(logoutButton);
+    connect(logoutButton, &QPushButton::clicked, this, &MainWindow::logout);
 
     QLabel *footer = new QLabel(
         "Small steps today,\nbetter planet tomorrow."
@@ -3121,7 +3165,7 @@ void MainWindow::setupDashboard()
     heading->setObjectName("pageTitle");
 
     QLabel *welcome = new QLabel(
-        "Welcome to CarboMetrics. Track your daily carbon footprint."
+        QString("Welcome, %1. Track your personal carbon footprint.").arg(currentUser.fullName)
         );
 
     welcome->setObjectName("pageSubtitle");
@@ -3152,7 +3196,7 @@ void MainWindow::setupDashboard()
     QWidget *activityCard = createStatCard(
         "Activities Tracked",
         "0",
-        "Activities entered today"
+        "Saved calculations for this account"
         );
 
     activitiesValue = activityCard->findChild<QLabel *>("cardValue");
@@ -3588,7 +3632,7 @@ void MainWindow::refreshReportsTable()
     }
 
     const QVector<EmissionRecord> records =
-        databaseManager.getAllRecords();
+        databaseManager.getAllRecords(currentUser.userId);
 
     // clearSpans() matters: the empty-state row uses a span, and a
     // leftover span would break row 0 once real data is inserted.
@@ -3769,7 +3813,7 @@ void MainWindow::deleteSelectedRecord()
         return;
     }
 
-    if (!databaseManager.deleteRecord(recordId)) {
+    if (!databaseManager.deleteRecord(recordId, currentUser.userId)) {
         QMessageBox::critical(
             this,
             "Deletion Failed",
@@ -4016,7 +4060,8 @@ void MainWindow::calculateEmissions()
 
     EmissionRecord record;
 
-    record.userName = name;
+    record.userId = currentUser.userId;
+    record.userName = currentUser.fullName;
     record.recordedAt = QDateTime::currentDateTime().toString(Qt::ISODate);
 
     record.transportType = transportType->currentText();
@@ -4058,7 +4103,7 @@ void MainWindow::calculateEmissions()
     // ========================================================
 
     if (activitiesValue != nullptr) {
-        activitiesValue->setText(QString::number(activityCount));
+        activitiesValue->setText(QString::number(databaseManager.getAllRecords(currentUser.userId).size()));
     }
 
     // Share the latest daily footprint with the global heat map dialog,
@@ -4066,8 +4111,15 @@ void MainWindow::calculateEmissions()
     QApplication::instance()->setProperty("carboLastDailyKg", totalEmissions);
 
     if (emissionsValue != nullptr) {
-        emissionsValue->setText(
-            QString("%1 kg CO2e").arg(totalEmissions, 0, 'f', 2));
+        double todayTotal = 0.0;
+        const QDate today = QDate::currentDate();
+        const QVector<EmissionRecord> ownRecords = databaseManager.getAllRecords(currentUser.userId);
+        for (const EmissionRecord &saved : ownRecords) {
+            const QDateTime savedAt = QDateTime::fromString(saved.recordedAt, Qt::ISODate);
+            if (savedAt.isValid() && savedAt.date() == today)
+                todayTotal += saved.totalEmissions;
+        }
+        emissionsValue->setText(QString("%1 kg CO2e").arg(todayTotal, 0, 'f', 2));
     }
 
     if (dashboardDonut != nullptr) {
@@ -4204,6 +4256,152 @@ void MainWindow::applyStyles()
 // ============================================================
 // NAVIGATION FUNCTIONS
 // ============================================================
+
+void MainWindow::setupProfilePage()
+{
+    auto *layout = new QVBoxLayout(profilePage);
+    layout->setContentsMargins(35, 30, 35, 30);
+    layout->setSpacing(18);
+
+    auto *heading = new QLabel("My Profile");
+    heading->setObjectName("pageTitle");
+    auto *subtitle = new QLabel("Manage your personal details and account security.");
+    subtitle->setObjectName("pageSubtitle");
+
+    auto *card = new QFrame;
+    card->setObjectName("contentCard");
+    auto *cardLayout = new QVBoxLayout(card);
+    cardLayout->setContentsMargins(26, 24, 26, 24);
+    cardLayout->setSpacing(15);
+
+    profilePhotoLabel = new QLabel;
+    profilePhotoLabel->setFixedSize(104, 104);
+    profilePhotoLabel->setAlignment(Qt::AlignCenter);
+    profilePhotoLabel->setStyleSheet("background:#e8f2e9;border:2px solid #c9dfcc;border-radius:52px;color:#218838;font-size:34px;");
+    profilePhotoLabel->setText("👤");
+    auto *photoButton = new QPushButton("Change profile photo");
+    photoButton->setObjectName("secondaryButton");
+    photoButton->setMaximumWidth(190);
+    connect(photoButton, &QPushButton::clicked, this, &MainWindow::chooseProfilePhoto);
+
+    auto *photoRow = new QHBoxLayout;
+    photoRow->addWidget(profilePhotoLabel);
+    auto *photoActions = new QVBoxLayout;
+    auto *photoTitle = new QLabel("Profile picture");
+    photoTitle->setObjectName("sectionTitle");
+    auto *photoHint = new QLabel("Choose a JPG, PNG or BMP image.");
+    photoHint->setObjectName("bodyText");
+    photoActions->addWidget(photoTitle);
+    photoActions->addWidget(photoHint);
+    photoActions->addWidget(photoButton);
+    photoActions->addStretch();
+    photoRow->addLayout(photoActions);
+    photoRow->addStretch();
+
+    auto *form = new QFormLayout;
+    form->setSpacing(12);
+    profileNameInput = new QLineEdit(currentUser.fullName);
+    profileEmailInput = new QLineEdit(currentUser.email);
+    profileUsernameLabel = new QLabel(currentUser.username);
+    profileUsernameLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    form->addRow("Full name", profileNameInput);
+    form->addRow("Username", profileUsernameLabel);
+    form->addRow("Email", profileEmailInput);
+
+    auto *saveButton = new QPushButton("Save profile changes");
+    saveButton->setObjectName("primaryButton");
+    saveButton->setMinimumHeight(42);
+    connect(saveButton, &QPushButton::clicked, this, &MainWindow::saveProfile);
+
+    auto *passwordButton = new QPushButton("Change password");
+    passwordButton->setObjectName("secondaryButton");
+    passwordButton->setMinimumHeight(42);
+    connect(passwordButton, &QPushButton::clicked, this, &MainWindow::changeAccountPassword);
+
+    cardLayout->addLayout(photoRow);
+    cardLayout->addSpacing(8);
+    cardLayout->addLayout(form);
+    cardLayout->addWidget(saveButton);
+    cardLayout->addWidget(passwordButton);
+    layout->addWidget(heading);
+    layout->addWidget(subtitle);
+    layout->addWidget(card);
+    layout->addStretch();
+
+    UserProfile latest;
+    if (databaseManager.getUserProfile(currentUser.userId, &latest)) {
+        currentUser = latest;
+        profilePhotoPath = latest.profilePhoto;
+        if (!profilePhotoPath.isEmpty()) {
+            QPixmap pix(profilePhotoPath);
+            if (!pix.isNull()) profilePhotoLabel->setPixmap(pix.scaled(profilePhotoLabel->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+        }
+    }
+}
+
+void MainWindow::chooseProfilePhoto()
+{
+    const QString path = QFileDialog::getOpenFileName(this, "Choose profile photo", QString(),
+                                                       "Images (*.png *.jpg *.jpeg *.bmp)");
+    if (path.isEmpty()) return;
+    QPixmap pix(path);
+    if (pix.isNull()) {
+        QMessageBox::warning(this, "Invalid image", "The selected file could not be opened as an image.");
+        return;
+    }
+    profilePhotoPath = path;
+    profilePhotoLabel->setText(QString());
+    profilePhotoLabel->setPixmap(pix.scaled(profilePhotoLabel->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+}
+
+void MainWindow::saveProfile()
+{
+    if (!databaseManager.updateUserProfile(currentUser.userId, profileNameInput->text(),
+                                           profileEmailInput->text(), profilePhotoPath)) {
+        QMessageBox::warning(this, "Profile not saved", databaseManager.lastError());
+        return;
+    }
+    currentUser.fullName = profileNameInput->text().trimmed();
+    currentUser.email = profileEmailInput->text().trimmed();
+    currentUser.profilePhoto = profilePhotoPath;
+    if (nameInput) {
+        nameInput->setText(currentUser.fullName);
+        nameInput->setReadOnly(true); // Edit the name from My Profile.
+    }
+    setWindowTitle(QString("CarboMetrics | %1").arg(currentUser.fullName));
+    QMessageBox::information(this, "Profile updated", "Your profile details have been saved.");
+}
+
+void MainWindow::changeAccountPassword()
+{
+    bool ok = false;
+    const QString current = QInputDialog::getText(this, "Change password", "Current password:", QLineEdit::Password, QString(), &ok);
+    if (!ok) return;
+    const QString next = QInputDialog::getText(this, "Change password", "New password (at least 8 characters):", QLineEdit::Password, QString(), &ok);
+    if (!ok) return;
+    const QString confirm = QInputDialog::getText(this, "Change password", "Confirm new password:", QLineEdit::Password, QString(), &ok);
+    if (!ok) return;
+    if (next != confirm) { QMessageBox::warning(this, "Password not changed", "The new passwords do not match."); return; }
+    if (!databaseManager.changePassword(currentUser.userId, current, next)) {
+        QMessageBox::warning(this, "Password not changed", databaseManager.lastError());
+        return;
+    }
+    QMessageBox::information(this, "Password updated", "Your password has been changed successfully.");
+}
+
+void MainWindow::showProfile()
+{
+    pages->setCurrentWidget(profilePage);
+}
+
+void MainWindow::logout()
+{
+    const auto answer = QMessageBox::question(this, "Logout", "Are you sure you want to log out?",
+                                               QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (answer == QMessageBox::Yes) {
+        emit logoutRequested();
+    }
+}
 
 void MainWindow::showDashboard()
 {

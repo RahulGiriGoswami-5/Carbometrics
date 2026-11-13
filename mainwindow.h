@@ -26,8 +26,11 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
-    explicit MainWindow(QWidget *parent = nullptr);
+    explicit MainWindow(const UserProfile &profile, QWidget *parent = nullptr);
     ~MainWindow() override = default;
+
+signals:
+    void logoutRequested();
 
 private slots:
     // Navigation
@@ -35,6 +38,11 @@ private slots:
     void showTrackEmissions();
     void showReports();
     void showSuggestions();
+    void showProfile();
+    void saveProfile();
+    void changeAccountPassword();
+    void chooseProfilePhoto();
+    void logout();
 
     // Emission calculation and form management
     void calculateEmissions();
@@ -50,6 +58,7 @@ private:
     void setupInputPage();
     void setupReportsPage();
     void setupSuggestionsPage();
+    void setupProfilePage();
     void applyStyles();
 
     // Module 5: Report management
@@ -62,6 +71,7 @@ private:
 
     // Module 5: Database management
     DatabaseManager databaseManager;
+    UserProfile currentUser;
 
     // GUI helper functions
     QWidget *createSidebar();
@@ -80,6 +90,7 @@ private:
     QWidget *inputPage;
     QWidget *reportsPage;
     QWidget *suggestionsPage;
+    QWidget *profilePage;
 
     // User input fields
     QLineEdit *nameInput;
@@ -107,6 +118,13 @@ private:
     DonutChart *reportsDonut;
     TrendChart *reportsTrend;
     QLabel *reportsSummary;
+
+    // Account profile controls
+    QLineEdit *profileNameInput;
+    QLineEdit *profileEmailInput;
+    QLabel *profileUsernameLabel;
+    QLabel *profilePhotoLabel;
+    QString profilePhotoPath;
 };
 
 #endif // MAINWINDOW_H

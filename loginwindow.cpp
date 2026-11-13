@@ -4,288 +4,175 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QFrame>
-#include <QFont>
 #include <QMessageBox>
-#include <QApplication>
+#include <QDialog>
+#include <QFormLayout>
 
 LoginWindow::LoginWindow(QWidget *parent)
-    : QWidget(parent),
-    usernameInput(nullptr),
-    passwordInput(nullptr),
-    messageLabel(nullptr),
-    loginButton(nullptr)
+    : QWidget(parent), usernameInput(nullptr), passwordInput(nullptr),
+    messageLabel(nullptr), loginButton(nullptr)
 {
+    databaseManager.openDatabase();
+    databaseManager.createTables();
     setupUI();
-
     setWindowTitle("CarboMetrics - Login");
-    setFixedSize(480, 520);
+    setFixedSize(480, 570);
 }
 
 void LoginWindow::setupUI()
 {
-    // Main layout
-    QVBoxLayout *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(35, 30, 35, 30);
-    mainLayout->setSpacing(15);
+    auto *mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(38, 30, 38, 28);
+    mainLayout->setSpacing(14);
 
-    // Application title
-    QLabel *title = new QLabel("CarboMetrics");
+    auto *title = new QLabel("🌱 CarboMetrics");
     title->setAlignment(Qt::AlignCenter);
-    title->setStyleSheet(
-        "font-size: 30px;"
-        "font-weight: bold;"
-        "color: #218838;"
-        "background-color: transparent;"
-        );
-
-    // Subtitle
-    QLabel *subtitle = new QLabel(
-        "Your Personal Carbon Footprint Tracker"
-        );
+    title->setStyleSheet("font-size:30px;font-weight:700;color:#218838;background:transparent;");
+    auto *subtitle = new QLabel("Your Personal Carbon Footprint Tracker");
     subtitle->setAlignment(Qt::AlignCenter);
-    subtitle->setStyleSheet(
-        "font-size: 13px;"
-        "color: #666666;"
-        "background-color: transparent;"
-        );
+    subtitle->setStyleSheet("font-size:13px;color:#66716a;background:transparent;");
 
-    // Login card
-    QFrame *card = new QFrame;
-    card->setStyleSheet(
-        "QFrame {"
-        "background-color: #ffffff;"
-        "border: 1px solid #dddddd;"
-        "border-radius: 12px;"
-        "}"
-        );
+    auto *card = new QFrame;
+    card->setStyleSheet("QFrame{background:#ffffff;border:1px solid #dce5dd;border-radius:14px;}");
+    auto *form = new QVBoxLayout(card);
+    form->setContentsMargins(26, 25, 26, 25);
+    form->setSpacing(13);
 
-    QVBoxLayout *cardLayout = new QVBoxLayout(card);
-    cardLayout->setContentsMargins(25, 25, 25, 25);
-    cardLayout->setSpacing(15);
-
-    // Login heading
-    QLabel *loginTitle = new QLabel("Welcome Back");
-    loginTitle->setAlignment(Qt::AlignCenter);
-    loginTitle->setStyleSheet(
-        "font-size: 21px;"
-        "font-weight: bold;"
-        "color: #222222;"
-        "background-color: transparent;"
-        "border: none;"
-        );
-
-    // Username label
-    QLabel *usernameLabel = new QLabel("Username");
-    usernameLabel->setStyleSheet(
-        "color: #333333;"
-        "background-color: transparent;"
-        "border: none;"
-        );
-
-    // Username input
+    auto *heading = new QLabel("Welcome Back");
+    heading->setAlignment(Qt::AlignCenter);
+    heading->setStyleSheet("font-size:22px;font-weight:700;color:#202820;background:transparent;border:0;");
+    auto *userLabel = new QLabel("Username");
+    userLabel->setStyleSheet("color:#303a32;background:transparent;border:0;");
     usernameInput = new QLineEdit;
     usernameInput->setPlaceholderText("Enter your username");
-    usernameInput->setMinimumHeight(40);
-    usernameInput->setStyleSheet(
-        "QLineEdit {"
-        "color: #222222;"
-        "background-color: #ffffff;"
-        "border: 1px solid #cccccc;"
-        "border-radius: 6px;"
-        "padding: 8px;"
-        "selection-color: #ffffff;"
-        "selection-background-color: #218838;"
-        "}"
-        "QLineEdit:focus {"
-        "color: #222222;"
-        "background-color: #ffffff;"
-        "border: 1px solid #218838;"
-        "}"
-        "QLineEdit::placeholder {"
-        "color: #888888;"
-        "}"
-        );
-
-    // Password label
-    QLabel *passwordLabel = new QLabel("Password");
-    passwordLabel->setStyleSheet(
-        "color: #333333;"
-        "background-color: transparent;"
-        "border: none;"
-        );
-
-    // Password input
+    usernameInput->setMinimumHeight(42);
+    auto *passLabel = new QLabel("Password");
+    passLabel->setStyleSheet("color:#303a32;background:transparent;border:0;");
     passwordInput = new QLineEdit;
     passwordInput->setPlaceholderText("Enter your password");
     passwordInput->setEchoMode(QLineEdit::Password);
-    passwordInput->setMinimumHeight(40);
-    passwordInput->setStyleSheet(
-        "QLineEdit {"
-        "color: #222222;"
-        "background-color: #ffffff;"
-        "border: 1px solid #cccccc;"
-        "border-radius: 6px;"
-        "padding: 8px;"
-        "selection-color: #ffffff;"
-        "selection-background-color: #218838;"
-        "}"
-        "QLineEdit:focus {"
-        "color: #222222;"
-        "background-color: #ffffff;"
-        "border: 1px solid #218838;"
-        "}"
-        "QLineEdit::placeholder {"
-        "color: #888888;"
-        "}"
-        );
-
-    // Error and status messages
+    passwordInput->setMinimumHeight(42);
     messageLabel = new QLabel;
     messageLabel->setWordWrap(true);
     messageLabel->setAlignment(Qt::AlignCenter);
-    messageLabel->setStyleSheet(
-        "color: #d32f2f;"
-        "background-color: transparent;"
-        "border: none;"
-        );
+    messageLabel->setStyleSheet("color:#c62828;background:transparent;border:0;");
 
-    // Login button
+    const QString inputStyle = "QLineEdit{color:#202820;background:#fff;border:1px solid #cbd5cc;border-radius:7px;padding:9px;} QLineEdit:focus{border:1px solid #218838;}";
+    usernameInput->setStyleSheet(inputStyle);
+    passwordInput->setStyleSheet(inputStyle);
+
     loginButton = new QPushButton("Login");
-    loginButton->setMinimumHeight(43);
+    loginButton->setMinimumHeight(44);
     loginButton->setCursor(Qt::PointingHandCursor);
-    loginButton->setStyleSheet(
-        "QPushButton {"
-        "background-color: #218838;"
-        "color: #ffffff;"
-        "font-size: 15px;"
-        "font-weight: bold;"
-        "border: none;"
-        "border-radius: 6px;"
-        "}"
-        "QPushButton:hover {"
-        "background-color: #19692c;"
-        "}"
-        "QPushButton:pressed {"
-        "background-color: #145523;"
-        "}"
-        );
+    loginButton->setStyleSheet("QPushButton{background:#218838;color:white;font-size:15px;font-weight:700;border:0;border-radius:7px;} QPushButton:hover{background:#19692c;}");
+    auto *registerButton = new QPushButton("Create a new account");
+    registerButton->setMinimumHeight(38);
+    registerButton->setCursor(Qt::PointingHandCursor);
+    registerButton->setStyleSheet("QPushButton{background:transparent;color:#218838;border:0;font-weight:600;} QPushButton:hover{text-decoration:underline;}");
 
-    // Add widgets to the login card
-    cardLayout->addWidget(loginTitle);
-    cardLayout->addWidget(usernameLabel);
-    cardLayout->addWidget(usernameInput);
-    cardLayout->addWidget(passwordLabel);
-    cardLayout->addWidget(passwordInput);
-    cardLayout->addWidget(messageLabel);
-    cardLayout->addWidget(loginButton);
+    form->addWidget(heading);
+    form->addWidget(userLabel);
+    form->addWidget(usernameInput);
+    form->addWidget(passLabel);
+    form->addWidget(passwordInput);
+    form->addWidget(messageLabel);
+    form->addWidget(loginButton);
+    form->addWidget(registerButton);
 
-    // Footer
-    QLabel *footer = new QLabel(
-        "Make every action count towards a greener planet."
-        );
+    auto *footer = new QLabel("Create your own account. Your carbon data stays separate from other users.");
     footer->setAlignment(Qt::AlignCenter);
     footer->setWordWrap(true);
-    footer->setStyleSheet(
-        "color: #777777;"
-        "font-size: 11px;"
-        "background-color: transparent;"
-        );
+    footer->setStyleSheet("font-size:11px;color:#78827a;background:transparent;");
 
-    // Assemble the main layout
     mainLayout->addWidget(title);
     mainLayout->addWidget(subtitle);
-    mainLayout->addSpacing(10);
+    mainLayout->addSpacing(8);
     mainLayout->addWidget(card);
     mainLayout->addStretch();
     mainLayout->addWidget(footer);
+    setStyleSheet("LoginWindow{background:#f2f7f2;}");
 
-    // Window background
-    setStyleSheet(
-        "LoginWindow {"
-        "background-color: #f3f7f3;"
-        "}"
-        );
+    connect(loginButton, &QPushButton::clicked, this, &LoginWindow::checkLogin);
+    connect(passwordInput, &QLineEdit::returnPressed, this, &LoginWindow::checkLogin);
+    connect(usernameInput, &QLineEdit::returnPressed, this, [this]() { passwordInput->setFocus(); });
+    connect(registerButton, &QPushButton::clicked, this, &LoginWindow::showRegistration);
+}
 
-    // Button click performs login
-    connect(
-        loginButton,
-        &QPushButton::clicked,
-        this,
-        &LoginWindow::checkLogin
-        );
-
-    // Pressing Enter in the password field performs login
-    connect(
-        passwordInput,
-        &QLineEdit::returnPressed,
-        this,
-        &LoginWindow::checkLogin
-        );
-
-    // Pressing Enter in the username field moves to password
-    connect(
-        usernameInput,
-        &QLineEdit::returnPressed,
-        this,
-        [this]() {
-            passwordInput->setFocus();
-        }
-        );
+void LoginWindow::setMessage(const QString &message, bool success)
+{
+    messageLabel->setStyleSheet(QString("color:%1;background:transparent;border:0;").arg(success ? "#218838" : "#c62828"));
+    messageLabel->setText(message);
 }
 
 void LoginWindow::checkLogin()
 {
     const QString username = usernameInput->text().trimmed();
     const QString password = passwordInput->text();
+    if (username.isEmpty() || password.isEmpty()) { setMessage("Please enter both username and password."); return; }
 
-    // Sample demonstration credentials
-    const QString correctUsername = "carbonuser";
-    const QString correctPassword = "Carbon@2026#Eco";
-
-    // Check for empty fields
-    if (username.isEmpty() || password.isEmpty()) {
-        messageLabel->setStyleSheet(
-            "color: #d32f2f;"
-            "background-color: transparent;"
-            "border: none;"
-            );
-
-        messageLabel->setText(
-            "Please enter both username and password."
-            );
-
-        return;
-    }
-
-    // Verify credentials
-    if (username == correctUsername &&
-        password == correctPassword) {
-
-        messageLabel->setStyleSheet(
-            "color: #218838;"
-            "background-color: transparent;"
-            "border: none;"
-            );
-
-        messageLabel->setText("Login successful!");
-
-        emit loginSuccessful();
-
-        close();
-
-    } else {
-        messageLabel->setStyleSheet(
-            "color: #d32f2f;"
-            "background-color: transparent;"
-            "border: none;"
-            );
-
-        messageLabel->setText(
-            "Incorrect username or password. Please try again."
-            );
-
+    UserProfile profile;
+    if (!databaseManager.authenticateUser(username, password, &profile)) {
+        setMessage(databaseManager.lastError());
         passwordInput->clear();
         passwordInput->setFocus();
+        return;
     }
+    emit loginSuccessful(profile.userId, profile.fullName, profile.username, profile.email);
+    close();
+}
+
+void LoginWindow::showRegistration()
+{
+    QDialog dialog(this);
+    dialog.setWindowTitle("Create your CarboMetrics account");
+    dialog.setMinimumWidth(390);
+    dialog.setStyleSheet("QDialog{background:#f4f8f4;} QLabel{color:#263329;} QLineEdit{background:white;color:#202820;border:1px solid #cbd5cc;border-radius:6px;padding:8px;min-height:24px;} QPushButton{background:#218838;color:white;border:0;border-radius:6px;padding:10px 18px;font-weight:600;} QPushButton:hover{background:#19692c;}");
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *heading = new QLabel("Create your account");
+    heading->setStyleSheet("font-size:21px;font-weight:700;color:#218838;");
+    auto *form = new QFormLayout;
+    auto *name = new QLineEdit;
+    auto *username = new QLineEdit;
+    auto *email = new QLineEdit;
+    auto *password = new QLineEdit;
+    auto *confirm = new QLineEdit;
+    password->setEchoMode(QLineEdit::Password);
+    confirm->setEchoMode(QLineEdit::Password);
+    name->setPlaceholderText("Your full name");
+    username->setPlaceholderText("At least 3 characters");
+    email->setPlaceholderText("you@example.com");
+    password->setPlaceholderText("At least 8 characters");
+    confirm->setPlaceholderText("Re-enter password");
+    form->addRow("Full name", name);
+    form->addRow("Username", username);
+    form->addRow("Email", email);
+    form->addRow("Password", password);
+    form->addRow("Confirm password", confirm);
+    auto *message = new QLabel;
+    message->setWordWrap(true);
+    message->setStyleSheet("color:#c62828;");
+    auto *buttons = new QHBoxLayout;
+    auto *cancel = new QPushButton("Cancel");
+    auto *create = new QPushButton("Create account");
+    buttons->addWidget(cancel);
+    buttons->addWidget(create);
+    layout->addWidget(heading);
+    layout->addLayout(form);
+    layout->addWidget(message);
+    layout->addLayout(buttons);
+    connect(cancel, &QPushButton::clicked, &dialog, &QDialog::reject);
+    connect(create, &QPushButton::clicked, &dialog, [&]() {
+        if (password->text() != confirm->text()) { message->setText("Passwords do not match."); return; }
+        UserProfile profile;
+        if (!databaseManager.registerUser(name->text(), username->text(), email->text(), password->text(), &profile)) {
+            message->setText(databaseManager.lastError()); return;
+        }
+        QMessageBox::information(&dialog, "Account created", "Your account has been created. You can now log in.");
+        this->usernameInput->setText(profile.username);
+        this->passwordInput->clear();
+        dialog.accept();
+    });
+    dialog.exec();
 }

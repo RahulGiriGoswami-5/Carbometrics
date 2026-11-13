@@ -6,6 +6,7 @@
 struct EmissionRecord
 {
     int id = 0;
+    int userId = 0;
 
     QString userName;
     QString recordedAt;
