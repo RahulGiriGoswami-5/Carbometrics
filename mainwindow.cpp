@@ -17,6 +17,7 @@
 #include <QDoubleValidator>
 #include <QIntValidator>
 #include <QDateTime>
+#include <QHash>
 #include <QStringList>
 #include <QTableWidget>
 #include <QTableWidgetItem>
@@ -35,6 +36,12 @@
 #include <QLinearGradient>
 #include <QtMath>
 #include <QPointer>
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QUrl>
+#include <QDateTime>
+#include <QHash>
 #include <functional>
 
 #include "transportactivity.h"
@@ -57,8 +64,8 @@
 namespace WorldData {
 
 static const int kFirstYear = 1990;
-static const int kLastYear = 2024;
-static const int kYears = 35;
+static int kLastYear = 2024;
+static const int kYears = 36; // 1990–2024 history plus one live-data slot
 static const int kCountryCount = 177;
 
 static const char *const kContinents[] = {"Africa","Antarctica","Asia","Europe","North America","Oceania","South America","Seven seas"};
@@ -68,7 +75,7 @@ static const char *const kRegions[] = {"Australia and New Zealand","Caribbean","
 static const int kRegionCount = 22;
 
 // World total CO2 per year, million tonnes
-static const float kWorldCo2[kYears] = {22732.1,23205.6,22520.4,22749.9,22974.6,23516.6,24233.5,24380.3,24295.7,24837.8,25511.5,25693,26265.3,27652.7,28610,29599,30594.2,31499.3,32049.7,31513,33317.7,34480,34954.7,35275.8,35465.7,35403.5,35392.8,35974.6,36734,37086.6,35158.2,36866.9,37527.8,38094,38598.6};
+static float kWorldCo2[kYears] = {22732.1,23205.6,22520.4,22749.9,22974.6,23516.6,24233.5,24380.3,24295.7,24837.8,25511.5,25693,26265.3,27652.7,28610,29599,30594.2,31499.3,32049.7,31513,33317.7,34480,34954.7,35275.8,35465.7,35403.5,35392.8,35974.6,36734,37086.6,35158.2,36866.9,37527.8,38094,38598.6};
 
 static const int kRingCount = 283;
 static const int kRingStart[kRingCount + 1] = {0,38,45,72,76,103,111,117,130,134,139,142,148,354,361,443,454,463,556,577,594,598,602,605,609,630,648,653,659,668,674,707,716,736,841,846,862,878,885,898,923,1090,1094,1099,1103,1108,1112,1118,1132,1136,1139,1164,1178,1232,1237,1243,1249,1255,1261,1272,1286,1315,1326,1330,1338,1353,1388,1394,1399,1402,1408,1434,1464,1474,1539,1546,1696,1748,1773,1785,1802,1821,1825,1835,1853,1903,1912,1917,1926,1936,1956,1977,1982,1986,1998,2009,2015,2045,2053,2057,2063,2091,2098,2131,2136,2140,2156,2160,2170,2200,2209,2215,2240,2331,2345,2366,2371,2391,2402,2416,2428,2445,2534,2560,2565,2569,2597,2603,2608,2618,2654,2658,2664,2670,2683,2700,2753,2775,2784,2796,2833,2838,2845,2849,2877,2890,2900,2909,2992,3011,3016,3022,3045,3070,3083,3088,3095,3104,3134,3144,3147,3168,3182,3193,3218,3249,3272,3338,3345,3387,3394,3419,3450,3494,3497,3519,3527,3536,3541,3562,3578,3590,3622,3643,3662,3668,3683,3719,3727,3734,3753,3793,3797,3817,3838,3844,3856,3861,3878,3923,3928,3936,3957,3961,3983,3988,3998,4017,4033,4037,4042,4061,4065,4387,4395,4400,4406,4411,4414,4422,4427,4445,4461,4480,4484,4493,4500,4525,4564,4576,4594,4601,4611,4617,4621,4625,4628,4631,4635,4649,4657,4691,4700,4733,4740,4776,4789,4819,4831,4844,4849,4874,4896,4934,4938,4948,4952,4972,5006,5014,5050,5063,5103,5113,5118,5153,5252,5257,5260,5264,5269,5274,5357,5361,5372,5411,5414,5418,5466,5492,5507,5523,5556,5569};
@@ -724,7 +731,7 @@ static const CountryRec kCountries[kCountryCount] = {
 };
 
 // Rows follow kCountries; columns are years kFirstYear..kLastYear; -1 = no data
-static const float kCo2Mt[kCountryCount][kYears] = {
+static float kCo2Mt[kCountryCount][kYears] = {
     {2.024,1.914,1.482,1.487,1.454,1.417,1.37,1.304,1.279,1.092,1.047,1.069,1.341,1.56,1.237,1.89,2.159,2.8,4.254,6.388,8.365,11.41,9.731,8.891,8.698,9.384,8.606,9.311,10.19,10.4,11.12,9.869,10.17,10.52,10.83},
     {5.521,4.29,2.517,2.338,1.924,2.089,2.018,1.543,1.755,2.986,3.025,3.221,3.748,4.303,4.177,4.261,3.911,4.004,4.448,4.37,4.817,5.175,4.93,5.346,6.072,4.712,4.555,5.344,5.195,4.941,4.865,5.137,4.498,4.417,4.444},
     {75.89,77.98,79.28,81.31,87.85,95.91,99.56,87.52,105.7,90.61,84.55,86.02,89.66,94.08,90.85,109.6,103.8,107.5,108.6,116.3,117.8,124.7,135.6,141.5,152.4,160.3,158.3,165.3,174.5,182.4,171.1,182,192.8,202.8,198.2},
@@ -904,7 +911,7 @@ static const float kCo2Mt[kCountryCount][kYears] = {
     {15.54,15.49,16.7,16.03,17.38,15.02,14.89,13.9,14.13,15.72,13.81,12.51,11.9,10.61,9.429,10.7,10.37,9.835,7.72,8.25,8.754,10.36,11.26,11.67,11.95,12.02,10.59,9.831,11.21,10.27,8.491,10.22,12.23,13.44,13.7}
 };
 
-static const float kCo2PerCapita[kCountryCount][kYears] = {
+static float kCo2PerCapita[kCountryCount][kYears] = {
     {0.168,0.156,0.112,0.1,0.089,0.083,0.077,0.071,0.067,0.055,0.052,0.053,0.063,0.069,0.053,0.077,0.085,0.108,0.161,0.233,0.296,0.389,0.318,0.281,0.265,0.277,0.248,0.261,0.277,0.275,0.285,0.247,0.251,0.254,0.254},
     {1.68,1.31,0.767,0.713,0.588,0.641,0.622,0.478,0.547,0.937,0.955,1.02,1.2,1.38,1.35,1.39,1.28,1.32,1.49,1.48,1.65,1.78,1.69,1.84,2.09,1.63,1.57,1.84,1.79,1.71,1.69,1.8,1.59,1.57,1.59},
     {2.99,3,2.98,2.98,3.15,3.37,3.43,2.96,3.52,2.97,2.74,2.75,2.82,2.92,2.78,3.31,3.09,3.15,3.12,3.28,3.26,3.38,3.6,3.68,3.89,4.01,3.88,3.96,4.1,4.21,3.89,4.07,4.24,4.39,4.23},
@@ -1224,7 +1231,16 @@ struct Entity {
 class HeatModel
 {
 public:
-    HeatModel() { build(); }
+    HeatModel() {
+        // Reserve the final slot for the online update; historical 1990–2024 values stay intact.
+        for (int c = 0; c < WorldData::kCountryCount; ++c) {
+            WorldData::kCo2Mt[c][WorldData::kYears - 1] = -1;
+            WorldData::kCo2PerCapita[c][WorldData::kYears - 1] = -1;
+        }
+        WorldData::kWorldCo2[WorldData::kYears - 1] = -1;
+        build();
+    }
+    void rebuild() { for (int l = 0; l < 3; ++l) ents[l].clear(); build(); }
 
     int levelCount() const { return 3; }
     const QVector<Entity> &entities(int level) const { return ents[level]; }
@@ -2040,7 +2056,7 @@ public:
         setAttribute(Qt::WA_DeleteOnClose);
         resize(1240, 800);
         setMinimumSize(1000, 680);
-        yearIdx = WorldData::kYears - 1;
+        yearIdx = WorldData::kYears - 2;
 
         QHBoxLayout *root = new QHBoxLayout(this);
         root->setContentsMargins(22, 20, 22, 18);
@@ -2145,6 +2161,19 @@ public:
             togglePlay(!playTimer->isActive());
         });
 
+        // Live OWID data controls. Historical years remain embedded; the final slot is refreshed online.
+        QHBoxLayout *dataRow = new QHBoxLayout();
+        dataStatus = new QLabel("Historical dataset loaded · checking for updates…");
+        dataStatus->setObjectName("hmMuted");
+        dataStatus->setWordWrap(true);
+        refreshDataButton = new QPushButton("Refresh data");
+        refreshDataButton->setCursor(Qt::PointingHandCursor);
+        QObject::connect(refreshDataButton, &QPushButton::clicked, this, [this]() { fetchLatestData(); });
+        dataRow->addWidget(dataStatus, 1);
+        dataRow->addWidget(refreshDataButton);
+        rl->addLayout(dataRow);
+        QTimer::singleShot(500, this, [this]() { fetchLatestData(); });
+
         // detail card
         detailCard = new QFrame();
         detailCard->setObjectName("hmCard");
@@ -2233,6 +2262,9 @@ public:
 
 private:
     HeatModel model;
+    QNetworkAccessManager *network = new QNetworkAccessManager(this);
+    QLabel *dataStatus = nullptr;
+    QPushButton *refreshDataButton = nullptr;
     HeatGlobeView *globe = nullptr;
     LegendBar *legend = nullptr;
     QPushButton *levelButtons[3] = { nullptr, nullptr, nullptr };
@@ -2250,6 +2282,94 @@ private:
 
     int level = LevelCountry, metric = MetricTotal, yearIdx = 0, selection = -1;
     double userKg;
+
+    static QStringList parseCsvLine(const QString &line)
+    {
+        QStringList fields; QString field; bool quoted = false;
+        for (int i = 0; i < line.size(); ++i) {
+            const QChar ch = line[i];
+            if (ch == '"') {
+                if (quoted && i + 1 < line.size() && line[i + 1] == '"') { field += '"'; ++i; }
+                else quoted = !quoted;
+            } else if (ch == ',' && !quoted) { fields << field; field.clear(); }
+            else field += ch;
+        }
+        fields << field;
+        return fields;
+    }
+
+    void fetchLatestData()
+    {
+        if (!network || (refreshDataButton && refreshDataButton->isEnabled() == false)) return;
+        if (refreshDataButton) refreshDataButton->setEnabled(false);
+        if (dataStatus) dataStatus->setText("Downloading the latest Our World in Data emissions dataset…");
+        QNetworkRequest request(QUrl("https://catalog.ourworldindata.org/emissions/owid_co2/owid_co2.csv"));
+        request.setRawHeader("User-Agent", "CarboMetrics/1.0 (educational emissions explorer)");
+        QNetworkReply *reply = network->get(request);
+        QObject::connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+            const QByteArray bytes = reply->readAll();
+            const QString error = reply->errorString();
+            const bool ok = reply->error() == QNetworkReply::NoError;
+            reply->deleteLater();
+            if (refreshDataButton) refreshDataButton->setEnabled(true);
+            if (!ok) {
+                if (dataStatus) dataStatus->setText("Offline · using the bundled 1990–2024 dataset. " + error);
+                return;
+            }
+            const QString csv = QString::fromUtf8(bytes);
+            const QStringList lines = csv.split('\n', Qt::SkipEmptyParts);
+            if (lines.size() < 2) { if (dataStatus) dataStatus->setText("Update unavailable · using bundled historical data."); return; }
+            QStringList header = parseCsvLine(lines.first().trimmed());
+            if (!header.isEmpty()) header[0].remove(QChar(0xFEFF));
+            auto col = [&header](const QString &name) { return header.indexOf(name); };
+            const int isoCol = col("iso_code"), yearCol = col("year"), co2Col = col("co2"), pcCol = col("co2_per_capita");
+            if (isoCol < 0 || yearCol < 0 || co2Col < 0) {
+                if (dataStatus) dataStatus->setText("Dataset format changed · using bundled historical data."); return;
+            }
+            struct Point { int year; double co2; double pc; };
+            QHash<QString, Point> latest;
+            int newestYear = 0; double worldMt = -1;
+            for (int i = 1; i < lines.size(); ++i) {
+                const QStringList f = parseCsvLine(lines[i].trimmed());
+                if (f.size() <= qMax(qMax(isoCol, yearCol), co2Col)) continue;
+                bool yOk = false, vOk = false;
+                const int year = f[yearCol].toInt(&yOk);
+                const double tonnes = f[co2Col].toDouble(&vOk);
+                if (!yOk || !vOk || year < WorldData::kFirstYear || tonnes < 0) continue;
+                const QString iso = f[isoCol].trimmed();
+                if (iso.isEmpty()) continue;
+                double pc = -1;
+                if (pcCol >= 0 && pcCol < f.size()) pc = f[pcCol].toDouble();
+                if (iso == "OWID_WRL") { if (year > newestYear) { newestYear = year; worldMt = tonnes / 1e6; } }
+                auto it = latest.find(iso);
+                if (it == latest.end() || year > it->year) latest.insert(iso, Point{year, tonnes / 1e6, pc});
+            }
+            if (newestYear <= WorldData::kFirstYear + WorldData::kYears - 2 || worldMt <= 0) {
+                if (dataStatus) dataStatus->setText("No newer complete global year found · retaining bundled historical data."); return;
+            }
+            int matched = 0;
+            for (int c = 0; c < WorldData::kCountryCount; ++c) {
+                const QString iso = QString::fromLatin1(WorldData::kCountries[c].iso);
+                const auto it = latest.constFind(iso);
+                if (it == latest.cend() || it->year != newestYear) continue;
+                WorldData::kCo2Mt[c][WorldData::kYears - 1] = float(it->co2);
+                WorldData::kCo2PerCapita[c][WorldData::kYears - 1] = float(it->pc);
+                ++matched;
+            }
+            // Use the latest common global year in the final timeline slot; earlier years are untouched.
+            if (matched < 50) {
+                if (dataStatus) dataStatus->setText("Latest year has insufficient country coverage · retaining bundled data."); return;
+            }
+            WorldData::kLastYear = newestYear;
+            WorldData::kWorldCo2[WorldData::kYears - 1] = float(worldMt);
+            model.rebuild();
+            yearIdx = WorldData::kYears - 1;
+            if (yearSlider) yearSlider->setValue(yearIdx);
+            refreshAll();
+            if (dataStatus) dataStatus->setText(QString("Live OWID data updated · %1 · %2 countries matched · %3")
+                                                .arg(newestYear).arg(matched).arg(QDateTime::currentDateTime().toString("d MMM yyyy, h:mm AP")));
+        });
+    }
 
     static QLabel *sectionLabel(const QString &text)
     {
