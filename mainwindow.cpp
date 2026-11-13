@@ -3769,16 +3769,16 @@ void MainWindow::calculateEmissions()
         double transportFactor = 0.0;
 
         if (selectedTransport == "Car") {
-            transportFactor = 0.15;
+            transportFactor = 0.18368;
         }
         else if (selectedTransport == "Motorcycle") {
-            transportFactor = 0.10;
+            transportFactor = 0.04520;
         }
         else if (selectedTransport == "Bus") {
-            transportFactor = 0.08;
+            transportFactor = 0.10097;
         }
         else if (selectedTransport == "Train") {
-            transportFactor = 0.04;
+            transportFactor = 0.03967;
         }
         else if (selectedTransport == "Electric Vehicle") {
             transportFactor = 0.05;
@@ -3802,7 +3802,7 @@ void MainWindow::calculateEmissions()
     // STEP 8: Calculate electricity emissions.
 
     if (electricity > 0.0) {
-        constexpr double electricityFactor = 0.70;
+        constexpr double electricityFactor = 0.675;
 
         analyzer.addActivity(
             std::make_unique<ElectricityActivity>(
@@ -3811,6 +3811,7 @@ void MainWindow::calculateEmissions()
                 electricityFactor
                 )
             );
+
 
         electricityEmissions = electricity * electricityFactor;
 
